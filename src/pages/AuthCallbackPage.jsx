@@ -1,22 +1,34 @@
 import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../services/supabase';
 import { toast } from 'react-hot-toast';
 
 export default function AuthCallbackPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
 
   useEffect(() => {
     const handleAuthCallback = async () => {
       try {
-        // Get the session from the URL hash
-        const { data: { session }, error } = await supabase.auth.getSession();
+        // Check for error in URL
+        const error = searchParams.get('error');
+        const errorDescription = searchParams.get('error_description');
         
         if (error) {
-          console.error('Session error:', error);
-          toast.error('Authentication failed. Please try again.');
+          console.error('Auth error:', error, errorDescription);
+          toast.error(errorDescription || 'Authentication failed. Please try again.');
+          navigate('/login');
+          return;
+        }
+
+        // Get the session from the URL hash
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          console.error('Session error:', sessionError);
+          toast.error('Failed to get session. Please try again.');
           navigate('/login');
           return;
         }
@@ -51,7 +63,7 @@ export default function AuthCallbackPage() {
 
             if (insertError) {
               console.error('Profile creation error:', insertError);
-              toast.error('Failed to create user profile');
+              toast.error('Failed to create user profile. Please try again.');
               navigate('/login');
               return;
             }
@@ -72,7 +84,7 @@ export default function AuthCallbackPage() {
     };
 
     handleAuthCallback();
-  }, [navigate]);
+  }, [navigate, searchParams]);
 
   return (
     <div className="min-h-screen flex items-center justify-center">

@@ -44,6 +44,7 @@ export function AuthProvider({ children }) {
         throw error;
       }
 
+      // The user will be redirected to the callback URL
       return data;
     } catch (error) {
       console.error('Google sign-in error:', error);
