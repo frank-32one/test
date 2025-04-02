@@ -21,6 +21,7 @@ import AboutPage from './pages/AboutPage';
 import HelpPage from './pages/HelpPage';
 import TermsPage from './pages/TermsPage';
 import PrivacyPage from './pages/PrivacyPage';
+import BrowsePage from './pages/BrowsePage';
 
 function App() {
   return (
@@ -36,6 +37,7 @@ function App() {
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
                 <Route path="/services" element={<ServicesPage />} />
+                <Route path="/browse" element={<BrowsePage />} />
                 <Route path="/provider/:id" element={<ServiceProviderPage />} />
                 <Route path="/auth/callback" element={<AuthCallbackPage />} />
                 <Route path="/contact" element={<ContactPage />} />

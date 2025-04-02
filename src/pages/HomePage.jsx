@@ -109,7 +109,7 @@ export default function HomePage() {
               </div>
               <div className="group relative mt-2">
                 <h3 className="mt-3 text-lg font-semibold leading-6 text-gray-900">
-                  <Link to={category.href}>
+                  <Link to={category.href} className="hover:text-indigo-600">
                     <span className="absolute inset-0" />
                     {category.name}
                   </Link>

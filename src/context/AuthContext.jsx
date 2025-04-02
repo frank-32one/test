@@ -1,128 +1,32 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
-import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 
-const AuthContext = createContext();
+const AuthContext = createContext({});
 
-export const AuthProvider = ({ children }) => {
+export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-  const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
-
-  // Memoized fetch functions
-  const fetchSession = useCallback(async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    setSession(session);
-    setUser(session?.user ?? null);
-    setLoading(false);
-  }, []);
-
-  const handleAuthStateChange = useCallback(async (event, session) => {
-    setSession(session);
-    setUser(session?.user ?? null);
-    setLoading(false);
-
-    if (event === 'SIGNED_IN') {
-      await handleNewUser(session.user);
-    }
-  }, []);
-
-  const handleNewUser = async (user) => {
-    const { data: existingProfile } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('id', user.id)
-      .single();
-
-    if (!existingProfile) {
-      const { error } = await supabase.from('profiles').insert([{
-        id: user.id,
-        full_name: user.user_metadata?.full_name || user.email?.split('@')[0],
-        user_type: 'customer',
-        email: user.email
-      }]);
-
-      if (error) {
-        console.error('Profile creation error:', error);
-        toast.error('Failed to initialize user profile');
-      }
-    }
-  };
 
   useEffect(() => {
-    fetchSession();
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthStateChange);
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
 
     return () => subscription.unsubscribe();
-  }, [fetchSession, handleAuthStateChange]);
-
-  const signUp = async (email, password, metadata) => {
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: metadata,
-        },
-      });
-
-      if (error) throw error;
-
-      // Create a profile in the profiles table
-      if (data?.user) {
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert([
-            {
-              id: data.user.id,
-              full_name: metadata.full_name,
-              phone: metadata.phone,
-              user_type: metadata.user_type,
-            },
-          ]);
-
-        if (profileError) throw profileError;
-      }
-
-      return { data, error: null };
-    } catch (error) {
-      return { data: null, error };
-    }
-  };
-
-  const signIn = async (email, password) => {
-    try {
-      setLoading(true);
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      });
-
-      if (error) throw error;
-      
-      // Verify user exists in profiles table
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .select()
-        .eq('id', data.user.id)
-        .single();
-
-      if (profileError) throw new Error('User profile not found');
-      
-      return data;
-    } catch (error) {
-      toast.error(error.message || 'Login failed');
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, []);
 
   const signInWithGoogle = async () => {
     try {
+      setLoading(true);
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -135,10 +39,61 @@ export const AuthProvider = ({ children }) => {
       });
 
       if (error) throw error;
-
-      return { data, error: null };
+      return data;
     } catch (error) {
-      return { data: null, error };
+      console.error('Google sign-in error:', error);
+      toast.error(error.message || 'Google sign-in failed');
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const signUp = async (email, password, metadata) => {
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: metadata.fullName,
+            phone: metadata.phone,
+            user_type: metadata.userType,
+          },
+          emailRedirectTo: `${window.location.origin}/dashboard`,
+        },
+      });
+
+      if (error) throw error;
+
+      // Verify user was created
+      if (data?.user) {
+        await supabase.from('profiles').upsert({
+          id: data.user.id,
+          email: data.user.email,
+          ...metadata,
+        });
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Sign-up error:', error);
+      throw error;
+    }
+  };
+
+  const signIn = async (email, password) => {
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Sign-in error:', error);
+      throw error;
     }
   };
 
@@ -146,57 +101,44 @@ export const AuthProvider = ({ children }) => {
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
-      navigate('/login');
     } catch (error) {
-      toast.error(error.message || 'Logout failed');
+      console.error('Sign-out error:', error);
+      throw error;
     }
   };
 
-  const resetPassword = async (email) => {
+  const verifyEmail = async (token) => {
     try {
-      const { data, error } = await supabase.auth.resetPasswordForEmail(email);
-      if (error) throw error;
-      return { data, error: null };
-    } catch (error) {
-      return { data: null, error };
-    }
-  };
-
-  const updateProfile = async (updates) => {
-    try {
-      const { data, error } = await supabase.auth.updateUser({
-        data: updates,
+      const { data, error } = await supabase.auth.verifyOtp({
+        type: 'signup',
+        token_hash: token,
       });
+
       if (error) throw error;
-      return { data, error: null };
+      return data;
     } catch (error) {
-      return { data: null, error };
+      console.error('Email verification error:', error);
+      throw error;
     }
   };
 
   const value = {
     user,
-    session,
     loading,
+    signInWithGoogle,
     signUp,
     signIn,
-    signInWithGoogle,
     signOut,
-    resetPassword,
-    updateProfile,
+    verifyEmail,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {!loading && children}
-    </AuthContext.Provider>
-  );
-};
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
 
-export const useAuth = () => {
+export function useAuth() {
   const context = useContext(AuthContext);
-  if (!context) {
+  if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
-}; 
+} 
