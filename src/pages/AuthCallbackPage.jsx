@@ -15,6 +15,7 @@ export default function AuthCallbackPage() {
         // Check for error in URL
         const error = searchParams.get('error');
         const errorDescription = searchParams.get('error_description');
+        const code = searchParams.get('code');
         
         if (error) {
           console.error('Auth error:', error, errorDescription);
@@ -23,8 +24,15 @@ export default function AuthCallbackPage() {
           return;
         }
 
-        // Get the session from the URL hash
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        if (!code) {
+          console.error('No code found in URL');
+          toast.error('Authentication failed. Please try again.');
+          navigate('/login');
+          return;
+        }
+
+        // Exchange the code for a session
+        const { data: { session }, error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
         
         if (sessionError) {
           console.error('Session error:', sessionError);
