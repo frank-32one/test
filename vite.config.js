@@ -7,6 +7,20 @@ export default defineConfig({
   base: '/test/',
   build: {
     outDir: 'dist',
-    sourcemap: true,
+    sourcemap: false, // Disable sourcemaps in production
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true, // Remove console.logs
+        drop_debugger: true
+      }
+    },
+    chunkSizeWarningLimit: 1000,
+    cssCodeSplit: true,
+    assetsInlineLimit: 4096, // Inline small assets
   },
+  server: {
+    port: 3000,
+    open: true
+  }
 })
