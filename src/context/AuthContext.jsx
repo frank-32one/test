@@ -38,7 +38,12 @@ export function AuthProvider({ children }) {
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Google sign-in error:', error);
+        toast.error('Google sign-in failed. Please try again.');
+        throw error;
+      }
+
       return data;
     } catch (error) {
       console.error('Google sign-in error:', error);

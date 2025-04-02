@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../services/supabase';
+import { toast } from 'react-hot-toast';
 
 export default function AuthCallbackPage() {
   const navigate = useNavigate();
@@ -13,7 +14,12 @@ export default function AuthCallbackPage() {
         // Get the session from the URL hash
         const { data: { session }, error } = await supabase.auth.getSession();
         
-        if (error) throw error;
+        if (error) {
+          console.error('Session error:', error);
+          toast.error('Authentication failed. Please try again.');
+          navigate('/login');
+          return;
+        }
 
         if (session?.user) {
           // Check if user has a profile
@@ -24,7 +30,10 @@ export default function AuthCallbackPage() {
             .single();
 
           if (profileError && profileError.code !== 'PGRST116') {
-            throw profileError;
+            console.error('Profile error:', profileError);
+            toast.error('Failed to load user profile');
+            navigate('/login');
+            return;
           }
 
           // If no profile exists, create one
@@ -40,17 +49,24 @@ export default function AuthCallbackPage() {
                 },
               ]);
 
-            if (insertError) throw insertError;
+            if (insertError) {
+              console.error('Profile creation error:', insertError);
+              toast.error('Failed to create user profile');
+              navigate('/login');
+              return;
+            }
           }
 
           // Redirect based on user type
           const userType = profile?.user_type || 'customer';
           navigate(userType === 'provider' ? '/dashboard' : '/browse');
         } else {
+          toast.error('No user session found');
           navigate('/login');
         }
       } catch (error) {
         console.error('Auth callback error:', error);
+        toast.error('Authentication failed. Please try again.');
         navigate('/login');
       }
     };
